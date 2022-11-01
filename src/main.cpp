@@ -1,15 +1,17 @@
 // Source : http://www.iotsharing.com/2017/05/tcp-udp-ip-with-esp32.html
 // Source : https://www.dfrobot.com/blog-948.html
+// Source : https://github.com/Links2004/arduinoWebSockets/blob/master/examples/esp32/WebSocketServer/WebSocketServer.ino
 
 #include <Arduino.h>
 #include "secrets.h"
 #include "WiFi.h"
 
+#include <WebSocketsServer.h>
+
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 
-const int port = 10000;
-WiFiServer server(port);
+WebSocketsServer webSocket = WebSocketsServer(81);
 
 String translateEncryptionType(wifi_auth_mode_t encryptionType)
 {
@@ -28,7 +30,7 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType)
     return "WPA_WPA2_PSK";
   case (WIFI_AUTH_WPA2_ENTERPRISE):
     return "WPA2_ENTERPRISE";
-  default:  
+  default:
     return "UNKNOWN";
   }
   return "UNKNOWN";
@@ -74,30 +76,38 @@ void connectToNetwork()
   Serial.println("Connected to network");
 }
 
-void handleTCPClient() {
-  WiFiClient client = server.available();
-  uint8_t data[30];
-  if (client)
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
+{
+
+  switch (type)
   {
-    Serial.println("New client");
-    /* check client is connected */
-    while (client.connected())
-    {
-      if (client.available())
-      {
-        int len = client.read(data, 30);
-        if (len < 30)
-        {
-          data[len] = '\0';
-        }
-        else
-        {
-          data[30] = '\0';
-        }
-        Serial.print("client sent: ");
-        Serial.println((char *)data);
-      }
-    }
+  case WStype_DISCONNECTED:
+    Serial.printf("[%u] Disconnected!\n", num);
+    break;
+  case WStype_CONNECTED:
+  {
+    IPAddress ip = webSocket.remoteIP(num);
+    Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+
+    // send message to client
+    webSocket.sendTXT(num, "Connected");
+  }
+  break;
+  case WStype_TEXT:
+    Serial.printf("[%u] get Text: %s\n", num, payload);
+
+    // send message to client
+    // webSocket.sendTXT(num, "message here");
+
+    // send data to all connected clients
+    // webSocket.broadcastTXT("message here");
+    break;
+  case WStype_ERROR:
+  case WStype_FRAGMENT_TEXT_START:
+  case WStype_FRAGMENT_BIN_START:
+  case WStype_FRAGMENT:
+  case WStype_FRAGMENT_FIN:
+    break;
   }
 }
 
@@ -112,10 +122,12 @@ void setup()
   Serial.println(WiFi.macAddress());
   Serial.println(WiFi.localIP());
 
-  server.begin();
+  Serial.println("Starting Websocket server");
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
 }
 
 void loop()
 {
-  handleTCPClient();
+  webSocket.loop();
 }
