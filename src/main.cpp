@@ -1,3 +1,4 @@
+// Source : http://www.iotsharing.com/2017/05/tcp-udp-ip-with-esp32.html
 // Source : https://www.dfrobot.com/blog-948.html
 
 #include <Arduino.h>
@@ -7,8 +8,8 @@
 const char *ssid = WIFI_SSID;
 const char *password = WIFI_PASSWORD;
 
-const char *host = "206.167.45.110";
 const int port = 10000;
+WiFiServer server(port);
 
 String translateEncryptionType(wifi_auth_mode_t encryptionType)
 {
@@ -70,6 +71,33 @@ void connectToNetwork()
   Serial.println("Connected to network");
 }
 
+void handleTCPClient() {
+  WiFiClient client = server.available();
+  uint8_t data[30];
+  if (client)
+  {
+    Serial.println("New client");
+    /* check client is connected */
+    while (client.connected())
+    {
+      if (client.available())
+      {
+        int len = client.read(data, 30);
+        if (len < 30)
+        {
+          data[len] = '\0';
+        }
+        else
+        {
+          data[30] = '\0';
+        }
+        Serial.print("client sent: ");
+        Serial.println((char *)data);
+      }
+    }
+  }
+}
+
 void setup()
 {
 
@@ -80,10 +108,11 @@ void setup()
 
   Serial.println(WiFi.macAddress());
   Serial.println(WiFi.localIP());
+
+  server.begin();
 }
 
 void loop()
 {
-  
-  delay(2000);
+  handleTCPClient();
 }
