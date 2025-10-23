@@ -7,31 +7,58 @@ const char *password = WIFI_PASSWORD;
 
 const int port = 10000;
 WiFiServer server(port);
+const int LED_PIN = LED_BUILTIN; 
+const bool LED_ACTIVE_LOW = true; // true si la LED s'allume quand la broche = LOW
+const int LED_ON  = (LED_ACTIVE_LOW ? LOW  : HIGH);
+const int LED_OFF = (LED_ACTIVE_LOW ? HIGH : LOW);
 
 void handleTCPClient() {
   WiFiClient client = server.available();
-  uint8_t data[30];
+  uint8_t data[31]; // 30 octets + terminaison
   if (client)
   {
-    Serial.println("New client");
+    Serial.println("New client from ip: " + client.remoteIP().toString() + ", port: " + String(client.remotePort()));
     /* check client is connected */
     while (client.connected())
     {
       if (client.available())
       {
         int len = client.read(data, 30);
-        if (len < 30)
+        if (len > 0)
         {
-          data[len] = '\0';
+          if (len < 30)
+          {
+            data[len] = '\0';
+          }
+          else
+          {
+            data[30] = '\0';
+          }
+
+          String cmd = String((char*)data);
+          cmd.trim();            // retire CR/LF et espaces
+          cmd.toUpperCase();     // accepte on/On/ON
+
+          Serial.print("client sent: ");
+          Serial.println(cmd);
+
+          if (cmd == "ON") {
+            digitalWrite(LED_PIN, LED_ON);
+            Serial.println("LED -> ON");
+            client.println("LED ON");
+          } else if (cmd == "OFF") {
+            digitalWrite(LED_PIN, LED_OFF);
+            Serial.println("LED -> OFF");
+            client.println("LED OFF");
+          } else {
+            client.println("UNKNOWN COMMAND");
+          }
         }
-        else
-        {
-          data[30] = '\0';
-        }
-        Serial.print("client sent: ");
-        Serial.println((char *)data);
       }
     }
+
+    Serial.println("Client disconnected");
+    client.stop();
   }
 }
 
@@ -103,6 +130,17 @@ void connectToNetwork()
 
 void setup() {
   Serial.begin(115200);
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LED_OFF); // état initial
+
+  // Test visuel rapide pour vérifier la broche et la polarité
+  for (int i = 0; i < 3; ++i) {
+    digitalWrite(LED_PIN, LED_ON);
+    delay(200);
+    digitalWrite(LED_PIN, LED_OFF);
+    delay(200);
+  }
 
   // Print MAC address
   Serial.println("MCU MAC address: " + WiFi.macAddress());
